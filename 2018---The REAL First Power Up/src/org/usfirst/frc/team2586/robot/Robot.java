@@ -97,10 +97,6 @@ public class Robot extends TimedRobot {
 	boolean overrideControllers = false;
 	boolean gyroMode = true;
 
-	// variable used for initial calibration of teleop gyro
-	boolean isTrackingStraight = false;
-	boolean overrideControllers = false;
-	boolean gyroMode = true;
 
 	// booleans for redundancy controls
 	boolean liftOverride = false;
@@ -125,6 +121,10 @@ public class Robot extends TimedRobot {
 	
 	//auto delay
 	double auto_delay;
+	
+	// Drive Base PID Vars
+	double sumError = 0;
+	double previousError = 0;
 
 	/**
 	 * -------------------------------------------------------------------------------------------------------------------------------
@@ -154,11 +154,6 @@ public class Robot extends TimedRobot {
 		leftEnc = new Encoder(0, 1);
 		rightEnc = new Encoder(2, 3);
 
-		double kPulsesPerRevolution = 1440;
-		// theoretical value double kInchesPerRevolution = 18.8496;
-		double kInchesPerRevolution = 26;
-		double kInchesPerPulse = kInchesPerRevolution / kPulsesPerRevolution;
-		//left- -19733, right- 18886
 		double leftKInchesPerPulse = -.00608;
 		double rightKInchesPerPulse = .00635;
 		leftEnc.setDistancePerPulse(leftKInchesPerPulse); // [Inches/Pulses]
@@ -774,6 +769,7 @@ public class Robot extends TimedRobot {
 	 * 
 	 * Must reset encoders and autoTimer between steps.
 	 */
+	
 	private boolean autoDrive(double distance) {
 
 		// Max drive speed
@@ -797,10 +793,13 @@ public class Robot extends TimedRobot {
 			d = r;
 		}
 
-		error = distance - d;
+		// Get Control Loop Period
+		double loopTime = this.getPeriod();
+		
+		double error = distance - d;
 		// Linear-Proportional control
-		// double kP = maxSpeed / 36.0; // Start to slow down at 36 inches from target
 		double kP = .0311;
+		
 		// Linear-Integral control
 		double kI = 0;
 		if (error < 24) {
@@ -811,7 +810,7 @@ public class Robot extends TimedRobot {
 
 		// Linear-Derivative control
 		double kD = 0.004;
-		dError = (error - previousError) / loopTime;
+		double dError = (error - previousError) / loopTime;
 
 		double lin = (kP * error) + (kI * sumError) + (kD * dError);
 
@@ -879,7 +878,6 @@ public class Robot extends TimedRobot {
 
 		// Max rotation speed
 		rot = absMax(rot, maxSpeed);
-		rot = absMin(rot, minSpeed);
 
 		// Nothing left but to do it...
 		mainDrive.arcadeDrive(0.0, rot);
@@ -925,17 +923,6 @@ public class Robot extends TimedRobot {
 			return Math.max(input, -maxValue);
 	}
 	
-	double absMin(double input, double minValue) {
-
-		// Just in case the max is negative
-		minValue = Math.abs(minValue);
-
-		if (input > 0)
-			return Math.max(input, minValue);
-		else
-			return Math.min(input, -minValue);
-	}
-
 	double absMin(double input, double minValue) {
 
 		// Just in case the max is negative
@@ -1104,28 +1091,7 @@ public class Robot extends TimedRobot {
 		// Get Field data from FMS
 		gameData = DriverStation.getInstance().getGameSpecificMessage().toUpperCase();
 	}
-	//function to keep robot tracking straight during teleop while joysticks are in similar positions
-	public void teleopGyro(double leftStick, double rightStick) {
-		double error = 0.2;
-		double averageSpeed = (leftStick + rightStick) / 2;
-		if(leftStick >= rightStick-error && leftStick <= rightStick+error) {
-			if(!isTrackingStraight) {
-			gyro.reset();
-			isTrackingStraight = true;
-			}
-			double kP_rot = 0.5 / 45.0; // start slowing down at 45 deg.
-			double e_rot = 0 - gyro.getAngleZ();
-			double rot = e_rot * kP_rot;
-			
-			mainDrive.arcadeDrive(averageSpeed, rot);
-			
-			
-		}
-		else{
-			mainDrive.tankDrive(leftStick, rightStick);
-			isTrackingStraight = false;
-		}
-	}
+
 
 	// function to keep robot tracking straight during teleop while joysticks are in
 	// similar positions
